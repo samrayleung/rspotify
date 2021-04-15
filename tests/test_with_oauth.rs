@@ -178,7 +178,7 @@ async fn test_current_user_playlists() {
 async fn test_current_user_recently_played() {
     oauth_client()
         .await
-        .current_user_recently_played(10)
+        .current_user_recently_played(10, None)
         .await
         .unwrap();
 }

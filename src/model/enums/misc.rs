@@ -36,6 +36,15 @@ pub enum TimeRange {
     ShortTerm,
 }
 
+/// Time limits in miliseconds (unix timestamps)
+///
+/// [Reference](https://developer.spotify.com/documentation/web-api/reference/#endpoint-get-the-users-recently-played-tracks/)
+#[derive(Clone, Serialize, Deserialize, Copy, PartialEq, Eq, Debug, ToString)]
+pub enum TimeLimits {
+    Before(i64),
+    After(i64),
+}
+
 /// Repeat state: `track`, `context` or `off`.
 ///
 /// [Reference](https://developer.spotify.com/documentation/web-api/reference/player/set-repeat-mode-on-users-playback/)

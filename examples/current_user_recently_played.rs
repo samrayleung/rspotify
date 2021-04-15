@@ -45,7 +45,7 @@ async fn main() {
     spotify.prompt_for_user_token().await.unwrap();
 
     // Running the requests
-    let history = spotify.current_user_recently_played(10).await;
+    let history = spotify.current_user_recently_played(10, None).await;
 
     println!("Response: {:?}", history);
 }
