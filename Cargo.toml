@@ -89,6 +89,11 @@ __sync = ["maybe-async/is_sync"]
 features = ["cli", "env-file"]
 
 [[example]]
+name = "http_clients"
+required-features = ["env-file", "cli", "client-reqwest", "client-ureq"]
+path = "examples/http_clients.rs"
+
+[[example]]
 name = "client_creds"
 required-features = ["env-file", "cli", "client-reqwest"]
 path = "examples/client_creds.rs"

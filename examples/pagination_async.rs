@@ -8,7 +8,7 @@
 
 use futures::stream::TryStreamExt;
 use futures_util::pin_mut;
-use rspotify::{prelude::*, scopes, AuthCodeSpotify, Credentials, OAuth};
+use rspotify::{http::ReqwestClient, prelude::*, scopes, AuthCodeSpotify, Credentials, OAuth};
 
 #[tokio::main]
 async fn main() {
@@ -18,7 +18,7 @@ async fn main() {
     let creds = Credentials::from_env().unwrap();
     let oauth = OAuth::from_env(scopes!("user-library-read")).unwrap();
 
-    let mut spotify = AuthCodeSpotify::new(creds, oauth);
+    let mut spotify = AuthCodeSpotify::<ReqwestClient>::new(creds, oauth);
 
     // Obtaining the access token
     let url = spotify.get_authorize_url(false).unwrap();

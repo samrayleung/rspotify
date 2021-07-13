@@ -4,7 +4,7 @@ use crate::{
         basic_auth, bearer_auth, convert_result, join_ids,
         pagination::{paginate, Paginator},
     },
-    http::{BaseHttpClient, Form, Headers, HttpClient, Query},
+    http::{BaseHttpClient, Form, Headers, Query},
     macros::build_map,
     model::*,
     ClientResult, Config, Credentials, Token,
@@ -20,12 +20,13 @@ use serde_json::{Map, Value};
 /// accessed without user authorization, including parts of the authentication
 /// flow that are shared, and the endpoints.
 #[maybe_async(?Send)]
-pub trait BaseClient
+pub trait BaseClient<Http>
 where
     Self: Default + Clone + fmt::Debug,
+    Http: BaseHttpClient,
 {
     fn get_config(&self) -> &Config;
-    fn get_http(&self) -> &HttpClient;
+    fn get_http(&self) -> &Http;
     fn get_token(&self) -> Option<&Token>;
     fn get_token_mut(&mut self) -> Option<&mut Token>;
     fn get_creds(&self) -> &Credentials;

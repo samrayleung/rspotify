@@ -2,7 +2,7 @@ use crate::{
     auth_urls,
     clients::{BaseClient, OAuthClient},
     headers,
-    http::{Form, HttpClient},
+    http::{BaseHttpClient, Form},
     ClientResult, Config, Credentials, OAuth, Token,
 };
 
@@ -61,18 +61,18 @@ use url::Url;
 /// [example-webapp]: https://github.com/ramsayleung/rspotify/tree/master/examples/webapp
 /// [example-refresh-token]: https://github.com/ramsayleung/rspotify/blob/master/examples/with_refresh_token.rs
 #[derive(Clone, Debug, Default)]
-pub struct AuthCodeSpotify {
+pub struct AuthCodeSpotify<Http: BaseHttpClient> {
     pub creds: Credentials,
     pub oauth: OAuth,
     pub config: Config,
     pub token: Option<Token>,
-    pub(in crate) http: HttpClient,
+    pub(in crate) http: Http,
 }
 
 /// This client has access to the base methods.
 #[maybe_async(?Send)]
-impl BaseClient for AuthCodeSpotify {
-    fn get_http(&self) -> &HttpClient {
+impl<Http: BaseHttpClient> BaseClient<Http> for AuthCodeSpotify<Http> {
+    fn get_http(&self) -> &Http {
         &self.http
     }
 
@@ -96,7 +96,7 @@ impl BaseClient for AuthCodeSpotify {
 /// This client includes user authorization, so it has access to the user
 /// private endpoints in [`OAuthClient`].
 #[maybe_async(?Send)]
-impl OAuthClient for AuthCodeSpotify {
+impl<Http: BaseHttpClient> OAuthClient<Http> for AuthCodeSpotify<Http> {
     fn get_oauth(&self) -> &OAuth {
         &self.oauth
     }
@@ -140,7 +140,7 @@ impl OAuthClient for AuthCodeSpotify {
     }
 }
 
-impl AuthCodeSpotify {
+impl<Http: BaseHttpClient> AuthCodeSpotify<Http> {
     /// Builds a new [`AuthCodeSpotify`] given a pair of client credentials and
     /// OAuth information.
     pub fn new(creds: Credentials, oauth: OAuth) -> Self {

@@ -7,7 +7,7 @@ use serde_json::Value;
 use ureq::{Request, Response};
 
 impl HttpError {
-    pub fn from_response(r: ureq::Response) -> Self {
+    pub fn from_ureq(r: ureq::Response) -> Self {
         HttpError::StatusCode(r.status(), r.status_text().to_string())
     }
 }
@@ -45,7 +45,7 @@ impl UreqClient {
             // Successful request
             Ok(response) => response.into_string().map_err(Into::into),
             // HTTP status error
-            Err(ureq::Error::Status(_, response)) => Err(HttpError::from_response(response)),
+            Err(ureq::Error::Status(_, response)) => Err(HttpError::from_ureq(response)),
             // Some kind of IO/transport error
             Err(err) => Err(HttpError::Request(err.to_string())),
         }

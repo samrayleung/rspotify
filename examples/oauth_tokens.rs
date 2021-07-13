@@ -5,7 +5,7 @@
 //! an .env file or export them manually as environmental variables for this to
 //! work.
 
-use rspotify::{prelude::*, scopes, AuthCodeSpotify, Credentials, OAuth};
+use rspotify::{http::ReqwestClient, prelude::*, scopes, AuthCodeSpotify, Credentials, OAuth};
 
 #[tokio::main]
 async fn main() {
@@ -38,7 +38,7 @@ async fn main() {
     );
     let oauth = OAuth::from_env(scopes).unwrap();
 
-    let mut spotify = AuthCodeSpotify::new(creds, oauth);
+    let mut spotify = AuthCodeSpotify::<ReqwestClient>::new(creds, oauth);
 
     let url = spotify.get_authorize_url(false).unwrap();
     spotify.prompt_for_token(&url).await.unwrap();

@@ -4,7 +4,7 @@ use crate::{
         pagination::{paginate, Paginator},
         BaseClient,
     },
-    http::Query,
+    http::{BaseHttpClient, Query},
     macros::{build_json, build_map},
     model::*,
     ClientResult, OAuth, Token,
@@ -28,7 +28,10 @@ use url::Url;
 /// only separates endpoints that *always* need authorization from the base
 /// ones.
 #[maybe_async(?Send)]
-pub trait OAuthClient: BaseClient {
+pub trait OAuthClient<Http>: BaseClient<Http>
+where
+    Http: BaseHttpClient,
+{
     fn get_oauth(&self) -> &OAuth;
 
     /// Obtains a user access token given a code, as part of the OAuth

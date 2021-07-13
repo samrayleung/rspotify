@@ -1,7 +1,7 @@
 use crate::{
     clients::BaseClient,
     headers,
-    http::{Form, HttpClient},
+    http::{BaseHttpClient, Form},
     ClientResult, Config, Credentials, Token,
 };
 
@@ -20,16 +20,16 @@ use maybe_async::maybe_async;
 /// [reference]: https://developer.spotify.com/documentation/general/guides/authorization-guide/#client-credentials-flow
 /// [example-main]: https://github.com/ramsayleung/rspotify/blob/master/examples/client_creds.rs
 #[derive(Clone, Debug, Default)]
-pub struct ClientCredsSpotify {
+pub struct ClientCredsSpotify<Http: BaseHttpClient> {
     pub config: Config,
     pub creds: Credentials,
     pub token: Option<Token>,
-    pub(in crate) http: HttpClient,
+    pub(in crate) http: Http,
 }
 
 /// This client has access to the base methods.
-impl BaseClient for ClientCredsSpotify {
-    fn get_http(&self) -> &HttpClient {
+impl<Http: BaseHttpClient> BaseClient<Http> for ClientCredsSpotify<Http> {
+    fn get_http(&self) -> &Http {
         &self.http
     }
 
@@ -50,7 +50,7 @@ impl BaseClient for ClientCredsSpotify {
     }
 }
 
-impl ClientCredsSpotify {
+impl<Http: BaseHttpClient> ClientCredsSpotify<Http> {
     /// Builds a new [`ClientCredsSpotify`] given a pair of client credentials
     /// and OAuth information.
     pub fn new(creds: Credentials) -> Self {

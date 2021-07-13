@@ -1,4 +1,4 @@
-use rspotify::{model::Id, prelude::*, ClientCredsSpotify, Credentials};
+use rspotify::{http::ReqwestClient, model::Id, prelude::*, ClientCredsSpotify, Credentials};
 
 #[tokio::main]
 async fn main() {
@@ -23,7 +23,7 @@ async fn main() {
     // ```
     let creds = Credentials::from_env().unwrap();
 
-    let mut spotify = ClientCredsSpotify::new(creds);
+    let mut spotify = ClientCredsSpotify::<ReqwestClient>::new(creds);
 
     // Obtaining the access token. Requires to be mutable because the internal
     // token will be modified. We don't need OAuth for this specific endpoint,

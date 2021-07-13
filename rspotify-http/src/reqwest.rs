@@ -11,7 +11,7 @@ use rspotify_model::ApiError;
 use serde_json::Value;
 
 impl HttpError {
-    pub async fn from_response(response: reqwest::Response) -> Self {
+    pub async fn from_reqwest(response: reqwest::Response) -> Self {
         match response.status() {
             StatusCode::UNAUTHORIZED => Self::Unauthorized,
             StatusCode::TOO_MANY_REQUESTS => Self::RateLimited(
@@ -88,7 +88,7 @@ impl ReqwestClient {
         if response.status().is_success() {
             response.text().await.map_err(Into::into)
         } else {
-            Err(HttpError::from_response(response).await)
+            Err(HttpError::from_reqwest(response).await)
         }
     }
 }

@@ -45,7 +45,7 @@ jobs:
         run: cargo install cargo-deadlinks
 
       - name: Build and Check
-        run: RUSTDOCFLAGS='-D warnings' cargo doc --features=cli,env-file
+        run: RUSTDOCFLAGS='-D warnings' cargo doc --all-features
 
       - name: Look for Dead Links
         run: |
@@ -59,11 +59,6 @@ jobs:
   test:
     name: Test and Lint for each Client
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        features:
-          - rspotify/cli,rspotify/env-file,rspotify/client-ureq,rspotify/ureq-rustls-tls,rspotify-http/client-ureq,rspotify-http/ureq-rustls-tls
-          - rspotify/cli,rspotify/env-file,rspotify/client-reqwest,rspotify/reqwest-rustls-tls,rspotify-http/client-reqwest,rspotify-http/reqwest-rustls-tls
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -80,10 +75,10 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -p rspotify -p rspotify-http -p rspotify-model -p rspotify-macros --no-default-features --features=${{ matrix.features }} -- -D warnings
+          args: --workspace --all-features -- -D warnings
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -p rspotify -p rspotify-http -p rspotify-model -p rspotify-macros --no-default-features --features=${{ matrix.features }}
+          args: --workspace --all-features
