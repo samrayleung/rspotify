@@ -42,7 +42,7 @@ pub struct SimplifiedAlbum {
 /// Full Album Object
 ///
 /// [Reference](https://developer.spotify.com/documentation/web-api/reference/#object-albumobject)
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FullAlbum {
     pub artists: Vec<SimplifiedArtist>,
     pub album_type: AlbumType,
@@ -83,7 +83,7 @@ pub struct PageSimpliedAlbums {
 /// Saved Album object
 ///
 /// [Reference](https://developer.spotify.com/documentation/web-api/reference/#object-savedalbumobject)
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SavedAlbum {
     pub added_at: DateTime<Utc>,
     pub album: FullAlbum,

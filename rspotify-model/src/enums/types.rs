@@ -124,7 +124,7 @@ pub enum DeviceType {
 ///
 /// [Reference](https://developer.spotify.com/documentation/web-api/reference/#object-recommendationseedobject)
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, AsRefStr)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "UPPERCASE")]
 pub enum RecommendationsSeedType {
     Artist,
     Track,

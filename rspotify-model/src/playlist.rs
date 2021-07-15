@@ -52,7 +52,7 @@ pub struct SimplifiedPlaylist {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct FullPlaylist {
     pub collaborative: bool,
-    pub description: String,
+    pub description: Option<String>,
     pub external_urls: HashMap<String, String>,
     pub followers: Followers,
     pub href: String,

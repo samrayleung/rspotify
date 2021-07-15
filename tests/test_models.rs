@@ -326,7 +326,7 @@ fn test_recommendations_seed() {
             "afterRelinkingSize": 365,
             "href": "https://api.spotify.com/v1/artists/4NHQUGzhtTLFvgF5SZesLK",
             "id": "4NHQUGzhtTLFvgF5SZesLK",
-            "type": "artist"
+            "type": "ARTIST"
         }        
         "#;
     let seed: RecommendationsSeed = serde_json::from_str(&json_str).unwrap();

@@ -26,7 +26,7 @@ pub trait PlayContextIdType: IdType {}
 macro_rules! sealed_types {
     ($($name:ident),+) => {
         $(
-            #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+            #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
             pub enum $name {}
             impl private::Sealed for $name {}
             impl IdType for $name {
@@ -65,7 +65,7 @@ pub type EpisodeIdBuf = IdBuf<Episode>;
 ///
 /// This is a not-owning type, it stores a `&str` only. See
 /// [IdBuf](crate::idtypes::IdBuf) for owned version of the type.
-#[derive(Debug, PartialEq, Eq, Serialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Hash)]
 pub struct Id<T> {
     #[serde(default)]
     _type: PhantomData<T>,
@@ -80,7 +80,7 @@ pub struct Id<T> {
 ///
 /// Use `Id::from_id(val).to_owned()`, `Id::from_uri(val).to_owned()` or
 /// `Id::from_id_or_uri(val).to_owned()` to construct an instance of this type.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Hash)]
 pub struct IdBuf<T> {
     #[serde(default)]
     _type: PhantomData<T>,

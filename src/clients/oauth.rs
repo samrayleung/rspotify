@@ -189,7 +189,7 @@ pub trait OAuthClient: BaseClient {
     /// [Reference](https://developer.spotify.com/documentation/web-api/reference/#endpoint-change-playlist-details)
     async fn playlist_change_detail(
         &self,
-        playlist_id: &str,
+        playlist_id: &PlaylistId,
         name: Option<&str>,
         public: Option<bool>,
         description: Option<&str>,
@@ -202,7 +202,7 @@ pub trait OAuthClient: BaseClient {
             optional "description": description,
         };
 
-        let url = format!("playlists/{}", playlist_id);
+        let url = format!("playlists/{}", playlist_id.id());
         self.endpoint_put(&url, &params).await
     }
 
@@ -212,9 +212,11 @@ pub trait OAuthClient: BaseClient {
     /// - playlist_id - the id of the playlist
     ///
     /// [Reference](https://developer.spotify.com/documentation/web-api/reference/#endpoint-unfollow-playlist)
-    async fn playlist_unfollow(&self, playlist_id: &str) -> ClientResult<String> {
-        let url = format!("playlists/{}/followers", playlist_id);
-        self.endpoint_delete(&url, &json!({})).await
+    async fn playlist_unfollow(&self, playlist_id: &PlaylistId) -> ClientResult<()> {
+        let url = format!("playlists/{}/followers", playlist_id.id());
+        self.endpoint_delete(&url, &json!({})).await?;
+
+        Ok(())
     }
 
     /// Adds tracks to a playlist.
@@ -278,18 +280,15 @@ pub trait OAuthClient: BaseClient {
     /// - snapshot_id - optional playlist's snapshot ID
     ///
     /// [Reference](https://developer.spotify.com/documentation/web-api/reference/#endpoint-reorder-or-replace-playlists-tracks)
-    async fn playlist_reorder_tracks<'a, T: PlayableIdType + 'a>(
+    async fn playlist_reorder_tracks(
         &self,
         playlist_id: &PlaylistId,
-        uris: Option<impl IntoIterator<Item = &'a Id<T>> + 'a>,
         range_start: Option<i32>,
         insert_before: Option<i32>,
         range_length: Option<u32>,
         snapshot_id: Option<&str>,
     ) -> ClientResult<PlaylistResult> {
-        let uris = uris.map(|u| u.into_iter().map(|id| id.uri()).collect::<Vec<_>>());
         let params = build_json! {
-            optional "uris": uris,
             optional "range_start": range_start,
             optional "insert_before": insert_before,
             optional "range_length": range_length,
@@ -433,7 +432,7 @@ pub trait OAuthClient: BaseClient {
     /// [Reference](https://developer.spotify.com/documentation/web-api/reference/#endpoint-get-recently-played)
     async fn current_user_playing_track(&self) -> ClientResult<Option<CurrentlyPlayingContext>> {
         let result = self
-            .get("me/player/currently-playing", None, &Query::new())
+            .endpoint_get("me/player/currently-playing", &Query::new())
             .await?;
         if result.is_empty() {
             Ok(None)
@@ -835,9 +834,9 @@ pub trait OAuthClient: BaseClient {
     ///
     /// Parameters:
     /// - market: Optional. an ISO 3166-1 alpha-2 country code or the string from_token.
-    /// - additional_types: Optional. A comma-separated list of item types that
-    ///   your client supports besides the default track type. Valid types are:
-    ///   `track` and `episode`.
+    /// - additional_types: Optional. A list of item types that your client
+    ///   supports besides the default track type. Valid types are: `track` and
+    ///   `episode`.
     ///
     /// [Reference](https://developer.spotify.com/documentation/web-api/reference/#endpoint-get-information-about-the-users-current-playback)
     async fn current_playback<'a>(
@@ -957,6 +956,15 @@ pub trait OAuthClient: BaseClient {
         Ok(())
     }
 
+    /// Start a user's playback
+    ///
+    /// Parameters:
+    /// - uris
+    /// - device_id
+    /// - offset
+    /// - position_ms
+    ///
+    /// [Reference](https://developer.spotify.com/documentation/web-api/reference/#endpoint-start-a-users-playback)
     async fn start_uris_playback<'a, T: PlayableIdType + 'a>(
         &self,
         uris: impl IntoIterator<Item = &'a Id<T>> + 'a,
@@ -988,6 +996,27 @@ pub trait OAuthClient: BaseClient {
     async fn pause_playback(&self, device_id: Option<&str>) -> ClientResult<()> {
         let url = append_device_id("me/player/pause", device_id);
         self.endpoint_put(&url, &json!({})).await?;
+
+        Ok(())
+    }
+
+    /// Resume a User’s Playback.
+    ///
+    /// Parameters:
+    /// - device_id - device target for playback
+    ///
+    /// [Reference](https://developer.spotify.com/documentation/web-api/reference/#endpoint-start-a-users-playback)
+    async fn resume_playback(
+        &self,
+        device_id: Option<&str>,
+        position_ms: Option<u32>,
+    ) -> ClientResult<()> {
+        let params = build_json! {
+            optional "position_ms": position_ms,
+        };
+
+        let url = append_device_id("me/player/play", device_id);
+        self.endpoint_put(&url, &params).await?;
 
         Ok(())
     }

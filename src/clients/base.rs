@@ -913,11 +913,11 @@ where
         let seed_tracks = seed_tracks.map(join_ids);
         let limit = limit.map(|x| x.to_string());
         let mut params = build_map! {
-            optional "seed_artists": seed_artists.as_ref(),
-            optional "seed_genres": seed_genres.as_ref(),
-            optional "seed_tracks": seed_tracks.as_ref(),
+            optional "seed_artists": seed_artists.as_deref(),
+            optional "seed_genres": seed_genres.as_deref(),
+            optional "seed_tracks": seed_tracks.as_deref(),
             optional "market": market.map(|x| x.as_ref()),
-            optional "limit": limit.as_ref(),
+            optional "limit": limit.as_deref(),
         };
 
         let attributes = [
