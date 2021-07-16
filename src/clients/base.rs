@@ -10,7 +10,11 @@ use crate::{
     ClientResult, Config, Credentials, Token,
 };
 
-use std::{collections::HashMap, fmt};
+use std::{
+    collections::HashMap,
+    fmt,
+    sync::{RwLockReadGuard, RwLockWriteGuard},
+};
 
 use chrono::Utc;
 use maybe_async::maybe_async;
@@ -22,12 +26,32 @@ use serde_json::{Map, Value};
 #[maybe_async(?Send)]
 pub trait BaseClient
 where
-    Self: Default + Clone + fmt::Debug,
+    Self: Default + fmt::Debug,
 {
     fn get_config(&self) -> &Config;
     fn get_http(&self) -> &HttpClient;
-    fn get_token(&self) -> Option<&Token>;
-    fn get_token_mut(&mut self) -> Option<&mut Token>;
+    /// You may notice two things upon seeing the function signature of
+    /// `get_token`:
+    ///
+    /// 1. It's a getter but it uses `async`
+    /// 2. It returns a `RwLockReadGuard`
+    ///
+    /// Firstly, the getter is async because of the self-refreshing feature. If
+    /// activated, the token may be automatically refreshed when the getter is
+    /// called, which may perform requests that can be handled asynchronously.
+    ///
+    /// Secondly, the token is wrapped by a `RwLock` in order to allow interior
+    /// mutability. This is required so that the entire client doesn't have to
+    /// be mutable (the token is accessed to from every endpoint). Unlike a
+    /// mutex, this allows multiple reads at the same time, which will be
+    /// happening most times. It is also preferred to use a `RwLock` over a
+    /// `RefCell` because that way it is possible to use the Spotify client
+    /// concurrently.
+    ///
+    /// Note that this isn't required for `get_token_mut` because in that case
+    /// the token is going to be overwritten anyway.
+    async fn get_token(&self) -> RwLockReadGuard<Option<Token>>;
+    fn get_token_mut(&self) -> RwLockWriteGuard<Option<Token>>;
     fn get_creds(&self) -> &Credentials;
 
     /// If it's a relative URL like "me", the prefix is appended to it.
@@ -42,9 +66,14 @@ where
     }
 
     /// The headers required for authenticated requests to the API
-    fn auth_headers(&self) -> ClientResult<Headers> {
+    async fn auth_headers(&self) -> ClientResult<Headers> {
         let mut auth = Headers::new();
-        let (key, val) = bearer_auth(self.get_token().expect("Rspotify not authenticated"));
+        let (key, val) = bearer_auth(
+            self.get_token()
+                .await
+                .as_ref()
+                .expect("Rspotify not authenticated"),
+        );
         auth.insert(key, val);
 
         Ok(auth)
@@ -123,25 +152,25 @@ where
     /// autentication.
     #[inline]
     async fn endpoint_get(&self, url: &str, payload: &Query<'_>) -> ClientResult<String> {
-        let headers = self.auth_headers()?;
+        let headers = self.auth_headers().await?;
         self.get(url, Some(&headers), payload).await
     }
 
     #[inline]
     async fn endpoint_post(&self, url: &str, payload: &Value) -> ClientResult<String> {
-        let headers = self.auth_headers()?;
+        let headers = self.auth_headers().await?;
         self.post(url, Some(&headers), payload).await
     }
 
     #[inline]
     async fn endpoint_put(&self, url: &str, payload: &Value) -> ClientResult<String> {
-        let headers = self.auth_headers()?;
+        let headers = self.auth_headers().await?;
         self.put(url, Some(&headers), payload).await
     }
 
     #[inline]
     async fn endpoint_delete(&self, url: &str, payload: &Value) -> ClientResult<String> {
-        let headers = self.auth_headers()?;
+        let headers = self.auth_headers().await?;
         self.delete(url, Some(&headers), payload).await
     }
 
@@ -150,12 +179,12 @@ where
     /// This should be used whenever it's possible to, even if the cached token
     /// isn't configured, because this will already check `Config::token_cached`
     /// and do nothing in that case already.
-    fn write_token_cache(&self) -> ClientResult<()> {
+    async fn write_token_cache(&self) -> ClientResult<()> {
         if !self.get_config().token_cached {
             return Ok(());
         }
 
-        if let Some(tok) = self.get_token().as_ref() {
+        if let Some(tok) = self.get_token().await.as_ref() {
             tok.write_cache(&self.get_config().cache_path)?;
         }
 

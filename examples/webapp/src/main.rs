@@ -2,26 +2,22 @@
 //! real-world web app, you should store it in a database instead. In that case
 //! you can disable `token_cached` in the `Config` struct passed to the client
 //! when initializing it to avoid using cache files.
-
-#![feature(proc_macro_hygiene, decl_macro)]
-
 #[macro_use]
 extern crate rocket;
-
 use getrandom::getrandom;
-use rocket::http::{Cookie, Cookies};
-use rocket::response::Redirect;
-use rocket_contrib::json;
-use rocket_contrib::json::JsonValue;
-use rocket_contrib::templates::Template;
-use rspotify::{scopes, AuthCodeSpotify, OAuth, Credentials, Config, prelude::*, Token};
+use rocket::http::{Cookie, CookieJar, SameSite};
+use rocket::serde::json::json;
+use rocket::{launch, Build};
+use rocket::{routes, Rocket};
+use rocket_dyn_templates::handlebars::JsonValue;
 
+use rocket::response::Redirect;
+use rocket_dyn_templates::Template;
+use rspotify::{prelude::*, scopes, AuthCodeSpotify, Config, Credentials, OAuth, Token};
+
+use std::cell::RefCell;
 use std::fs;
-use std::{
-    collections::HashMap,
-    env,
-    path::PathBuf,
-};
+use std::{collections::HashMap, env, path::PathBuf};
 
 #[derive(Debug, Responder)]
 pub enum AppResponse {
@@ -45,16 +41,16 @@ fn generate_random_uuid(length: usize) -> String {
         .collect()
 }
 
-fn get_cache_path(cookies: &Cookies) -> PathBuf {
+fn get_cache_path(cookies: &CookieJar<'_>) -> PathBuf {
     let project_dir_path = env::current_dir().unwrap();
     let mut cache_path = project_dir_path;
     cache_path.push(CACHE_PATH);
-    cache_path.push(cookies.get("uuid").unwrap().value());
+    cache_path.push(cookies.get_pending("uuid").unwrap().value());
 
     cache_path
 }
 
-fn create_cache_path_if_absent(cookies: &Cookies) -> PathBuf {
+fn create_cache_path_if_absent(cookies: &CookieJar<'_>) -> PathBuf {
     let cache_path = get_cache_path(cookies);
     if !cache_path.exists() {
         let mut path = cache_path.clone();
@@ -64,7 +60,7 @@ fn create_cache_path_if_absent(cookies: &Cookies) -> PathBuf {
     cache_path
 }
 
-fn remove_cache_path(mut cookies: Cookies) {
+fn remove_cache_path(cookies: &CookieJar<'_>) {
     let cache_path = get_cache_path(&cookies);
     if cache_path.exists() {
         fs::remove_file(cache_path).unwrap()
@@ -72,12 +68,12 @@ fn remove_cache_path(mut cookies: Cookies) {
     cookies.remove(Cookie::named("uuid"))
 }
 
-fn check_cache_path_exists(cookies: &Cookies) -> bool {
+fn check_cache_path_exists(cookies: &CookieJar<'_>) -> bool {
     let cache_path = get_cache_path(cookies);
     cache_path.exists()
 }
 
-fn init_spotify(cookies: &Cookies) -> AuthCodeSpotify {
+fn init_spotify(cookies: &CookieJar<'_>) -> AuthCodeSpotify {
     let config = Config {
         token_cached: true,
         cache_path: create_cache_path_if_absent(cookies),
@@ -95,15 +91,15 @@ fn init_spotify(cookies: &Cookies) -> AuthCodeSpotify {
     // Replacing client_id and client_secret with yours.
     let creds = Credentials::new(
         "e1dce60f1e274e20861ce5d96142a4d3",
-        "0e4e03b9be8d465d87fc32857a4b5aa3"
+        "0e4e03b9be8d465d87fc32857a4b5aa3",
     );
 
     AuthCodeSpotify::with_config(creds, oauth, config)
 }
 
 #[get("/callback?<code>")]
-fn callback(cookies: Cookies, code: String) -> AppResponse {
-    let mut spotify = init_spotify(&cookies);
+fn callback(cookies: &CookieJar, code: String) -> AppResponse {
+    let spotify = init_spotify(&cookies);
 
     match spotify.request_token(&code) {
         Ok(_) => {
@@ -120,15 +116,19 @@ fn callback(cookies: Cookies, code: String) -> AppResponse {
 }
 
 #[get("/")]
-fn index(mut cookies: Cookies) -> AppResponse {
+fn index(cookies: &CookieJar<'_>) -> AppResponse {
     let mut context = HashMap::new();
 
     // The user is authenticated if their cookie is set and a cache exists for
     // them.
-    let authenticated = cookies.get("uuid").is_some() && check_cache_path_exists(&cookies);
+    let authenticated = cookies.get_pending("uuid").is_some() && check_cache_path_exists(&cookies);
     if !authenticated {
-        cookies.add(Cookie::new("uuid", generate_random_uuid(64)));
-
+        let cookie = Cookie::build("uuid", generate_random_uuid(64))
+            .path("/")
+            .secure(false)
+            .same_site(SameSite::None)
+            .finish();
+        cookies.add(cookie);
         let spotify = init_spotify(&cookies);
         let auth_url = spotify.get_authorize_url(true).unwrap();
         context.insert("auth_url", auth_url);
@@ -156,21 +156,22 @@ fn index(mut cookies: Cookies) -> AppResponse {
 }
 
 #[get("/sign_out")]
-fn sign_out(cookies: Cookies) -> AppResponse {
+fn sign_out(cookies: &CookieJar<'_>) -> AppResponse {
     remove_cache_path(cookies);
     AppResponse::Redirect(Redirect::to("/"))
 }
 
 #[get("/playlists")]
-fn playlist(cookies: Cookies) -> AppResponse {
+fn playlist(cookies: &CookieJar<'_>) -> AppResponse {
     let mut spotify = init_spotify(&cookies);
     if !spotify.config.cache_path.exists() {
         return AppResponse::Redirect(Redirect::to("/"));
     }
 
     let token = spotify.read_token_cache().unwrap();
-    spotify.token = Some(token);
-    let playlists = spotify.current_user_playlists()
+    spotify.token = RefCell::new(Some(token));
+    let playlists = spotify
+        .current_user_playlists()
         .take(50)
         .filter_map(Result::ok)
         .collect::<Vec<_>>();
@@ -183,22 +184,22 @@ fn playlist(cookies: Cookies) -> AppResponse {
 }
 
 #[get("/me")]
-fn me(cookies: Cookies) -> AppResponse {
+fn me(cookies: &CookieJar<'_>) -> AppResponse {
     let mut spotify = init_spotify(&cookies);
     if !spotify.config.cache_path.exists() {
         return AppResponse::Redirect(Redirect::to("/"));
     }
 
-    spotify.token = Some(spotify.read_token_cache().unwrap());
+    spotify.token = RefCell::new(Some(spotify.read_token_cache().unwrap()));
     match spotify.me() {
         Ok(user_info) => AppResponse::Json(json!(user_info)),
         Err(_) => AppResponse::Redirect(Redirect::to("/")),
     }
 }
 
-fn main() {
-    rocket::ignite()
+#[launch]
+fn rocket() -> Rocket<Build> {
+    rocket::build()
         .mount("/", routes![index, callback, sign_out, me, playlist])
         .attach(Template::fairing())
-        .launch();
 }

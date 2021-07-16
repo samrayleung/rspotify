@@ -114,6 +114,11 @@ required-features = ["env-file", "cli", "client-reqwest"]
 path = "examples/with_refresh_token.rs"
 
 [[example]]
+name = "with_auto_reauth"
+required-features = ["env-file", "cli", "client-reqwest"]
+path = "examples/with_auto_reauth.rs"
+
+[[example]]
 name = "device"
 required-features = ["env-file", "cli", "client-ureq"]
 path = "examples/ureq/device.rs"
@@ -132,6 +137,11 @@ path = "examples/ureq/search.rs"
 name = "seek_track"
 required-features = ["env-file", "cli", "client-ureq"]
 path = "examples/ureq/seek_track.rs"
+
+[[example]]
+name = "threading"
+required-features = ["env-file", "cli", "client-ureq"]
+path = "examples/ureq/threading.rs"
 
 [[example]]
 name = "pagination_manual"

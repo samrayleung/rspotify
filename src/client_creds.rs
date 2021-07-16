@@ -5,6 +5,8 @@ use crate::{
     ClientResult, Config, Credentials, Token,
 };
 
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+
 use maybe_async::maybe_async;
 
 /// The [Client Credentials Flow][reference] client for the Spotify API.
@@ -19,26 +21,34 @@ use maybe_async::maybe_async;
 ///
 /// [reference]: https://developer.spotify.com/documentation/general/guides/authorization-guide/#client-credentials-flow
 /// [example-main]: https://github.com/ramsayleung/rspotify/blob/master/examples/client_creds.rs
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub struct ClientCredsSpotify {
     pub config: Config,
     pub creds: Credentials,
-    pub token: Option<Token>,
+    pub token: RwLock<Option<Token>>,
     pub(in crate) http: HttpClient,
 }
 
 /// This client has access to the base methods.
+#[maybe_async(?Send)]
 impl BaseClient for ClientCredsSpotify {
     fn get_http(&self) -> &HttpClient {
         &self.http
     }
 
-    fn get_token(&self) -> Option<&Token> {
-        self.token.as_ref()
+    async fn get_token(&self) -> RwLockReadGuard<Option<Token>> {
+        self.auto_reauth()
+            .await
+            .expect("Failed to re-authenticate automatically, please obtain the token again");
+        self.token
+            .read()
+            .expect("Failed to read token; the lock has been poisoned")
     }
 
-    fn get_token_mut(&mut self) -> Option<&mut Token> {
-        self.token.as_mut()
+    fn get_token_mut(&self) -> RwLockWriteGuard<Option<Token>> {
+        self.token
+            .write()
+            .expect("Failed to write token; the lock has been poisoned")
     }
 
     fn get_creds(&self) -> &Credentials {
@@ -65,7 +75,7 @@ impl ClientCredsSpotify {
     /// as the client credentials aren't known.
     pub fn from_token(token: Token) -> Self {
         ClientCredsSpotify {
-            token: Some(token),
+            token: RwLock::new(Some(token)),
             ..Default::default()
         }
     }
@@ -103,12 +113,35 @@ impl ClientCredsSpotify {
     /// Obtains the client access token for the app. The resulting token will be
     /// saved internally.
     #[maybe_async]
-    pub async fn request_token(&mut self) -> ClientResult<()> {
+    pub async fn request_token(&self) -> ClientResult<()> {
+        *self.get_token_mut() = Some(self.fetch_token().await?);
+
+        self.write_token_cache().await
+    }
+
+    /// Fetch access token
+    #[maybe_async]
+    async fn fetch_token(&self) -> ClientResult<Token> {
         let mut data = Form::new();
+
         data.insert(headers::GRANT_TYPE, headers::GRANT_CLIENT_CREDS);
 
-        self.token = Some(self.fetch_access_token(&data).await?);
+        let token = self.fetch_access_token(&data).await?;
+        Ok(token)
+    }
 
-        self.write_token_cache()
+    /// Re-authenticate automatically if it's configured to do so, which
+    /// authenticates the usual way to obtain a new access token.
+    #[maybe_async]
+    async fn auto_reauth(&self) -> ClientResult<()> {
+        // You could not have read lock and write lock at the same time, which
+        // will result in deadlock, so obtain the write lock and use it in the
+        // whole process.
+        let mut token = self.get_token_mut();
+        if self.config.token_refreshing && token.as_ref().map_or(false, |tok| tok.is_expired()) {
+            *token = Some(self.fetch_token().await?);
+            self.write_token_cache().await?
+        }
+        Ok(())
     }
 }

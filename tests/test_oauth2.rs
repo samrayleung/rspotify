@@ -54,7 +54,7 @@ async fn test_read_token_cache() {
     predefined_spotify.config = config.clone();
 
     // write token data to cache_path
-    predefined_spotify.write_token_cache().unwrap();
+    predefined_spotify.write_token_cache().await.unwrap();
     assert!(predefined_spotify.config.cache_path.exists());
 
     let mut spotify = ClientCredsSpotify::default();
@@ -71,8 +71,8 @@ async fn test_read_token_cache() {
     fs::remove_file(&spotify.config.cache_path).unwrap();
 }
 
-#[test]
-fn test_write_token() {
+#[maybe_async::test(feature = "__sync", async(feature = "__async", tokio::test))]
+async fn test_write_token() {
     let now = Utc::now();
     let scopes = scopes!("playlist-read-private", "playlist-read-collaborative");
 
@@ -93,7 +93,7 @@ fn test_write_token() {
     spotify.config = config;
 
     let tok_str = serde_json::to_string(&tok).unwrap();
-    spotify.write_token_cache().unwrap();
+    spotify.write_token_cache().await.unwrap();
 
     let mut file = fs::File::open(&spotify.config.cache_path).unwrap();
     let mut tok_str_file = String::new();

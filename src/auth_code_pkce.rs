@@ -6,7 +6,10 @@ use crate::{
     ClientResult, Config, Credentials, OAuth, Token,
 };
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{RwLock, RwLockReadGuard, RwLockWriteGuard},
+};
 
 use maybe_async::maybe_async;
 use url::Url;
@@ -24,27 +27,35 @@ use url::Url;
 ///
 /// [reference]: https://developer.spotify.com/documentation/general/guides/authorization-guide/#authorization-code-flow-with-proof-key-for-code-exchange-pkce
 /// [example-main]: https://github.com/ramsayleung/rspotify/blob/master/examples/auth_code_pkce.rs
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub struct AuthCodePkceSpotify {
     pub creds: Credentials,
     pub oauth: OAuth,
     pub config: Config,
-    pub token: Option<Token>,
+    pub token: RwLock<Option<Token>>,
     pub(in crate) http: HttpClient,
 }
 
 /// This client has access to the base methods.
+#[maybe_async(?Send)]
 impl BaseClient for AuthCodePkceSpotify {
     fn get_http(&self) -> &HttpClient {
         &self.http
     }
 
-    fn get_token(&self) -> Option<&Token> {
-        self.token.as_ref()
+    async fn get_token(&self) -> RwLockReadGuard<Option<Token>> {
+        self.auto_reauth()
+            .await
+            .expect("Failed to re-authenticate automatically, please authenticate");
+        self.token
+            .read()
+            .expect("Failed to read token; the lock has been poisoned")
     }
 
-    fn get_token_mut(&mut self) -> Option<&mut Token> {
-        self.token.as_mut()
+    fn get_token_mut(&self) -> RwLockWriteGuard<Option<Token>> {
+        self.token
+            .write()
+            .expect("Failed to write token; the lock has been poisoned")
     }
 
     fn get_creds(&self) -> &Credentials {
@@ -64,7 +75,26 @@ impl OAuthClient for AuthCodePkceSpotify {
         &self.oauth
     }
 
-    async fn request_token(&mut self, code: &str) -> ClientResult<()> {
+    async fn auto_reauth(&self) -> ClientResult<()> {
+        // You could not have read lock and write lock at the same time, which
+        // will result in deadlock, so obtain the write lock and use it in the
+        // whole process.
+        let mut token = self.get_token_mut();
+        if self.config.token_refreshing && token.as_ref().map_or(false, |tok| tok.can_reauth()) {
+            if let Some(re_tok) = token
+                .as_ref()
+                .map(|tok| tok.refresh_token.as_ref())
+                .flatten()
+            {
+                let fetched_token = self.refetch_token(re_tok).await?;
+                *token = Some(fetched_token);
+                self.write_token_cache().await?
+            };
+        }
+        Ok(())
+    }
+
+    async fn request_token(&self, code: &str) -> ClientResult<()> {
         // TODO
         let mut data = Form::new();
         let oauth = self.get_oauth();
@@ -81,22 +111,28 @@ impl OAuthClient for AuthCodePkceSpotify {
         data.insert(headers::STATE, oauth.state.as_ref());
 
         let token = self.fetch_access_token(&data).await?;
-        self.token = Some(token);
+        *self.get_token_mut() = Some(token);
 
-        self.write_token_cache()
+        self.write_token_cache().await
     }
 
-    async fn refresh_token(&mut self, refresh_token: &str) -> ClientResult<()> {
-        // TODO
+    async fn refetch_token(&self, refresh_token: &str) -> ClientResult<Token> {
         let mut data = Form::new();
         data.insert(headers::REFRESH_TOKEN, refresh_token);
         data.insert(headers::GRANT_TYPE, headers::GRANT_REFRESH_TOKEN);
 
         let mut token = self.fetch_access_token(&data).await?;
         token.refresh_token = Some(refresh_token.to_string());
-        self.token = Some(token);
+        Ok(token)
+    }
 
-        self.write_token_cache()
+    async fn refresh_token(&self, refresh_token: &str) -> ClientResult<()> {
+        // TODO
+        let token = self.refetch_token(refresh_token).await?;
+
+        *self.get_token_mut() = Some(token);
+
+        self.write_token_cache().await
     }
 }
 
@@ -116,7 +152,7 @@ impl AuthCodePkceSpotify {
     /// client credentials aren't known.
     pub fn from_token(token: Token) -> Self {
         AuthCodePkceSpotify {
-            token: Some(token),
+            token: RwLock::new(Some(token)),
             ..Default::default()
         }
     }

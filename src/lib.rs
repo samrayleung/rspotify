@@ -228,9 +228,14 @@ pub struct Config {
     /// request, which most times is 50.
     pub pagination_chunks: u32,
 
+    /// Whether or not to save the authentication token into a JSON file,
+    /// then reread the token from JSON file when launching the program without
+    /// following the full auth process again
     pub token_cached: bool,
 
-    /// TODO
+    /// Whether or not to check if the token has expired when sending a
+    /// request with credentials, and in that case, it uses the refresh
+    /// token to obtain a new access token.
     pub token_refreshing: bool,
 }
 
@@ -362,6 +367,11 @@ impl Token {
     pub fn is_expired(&self) -> bool {
         self.expires_at
             .map_or(true, |x| Utc::now().timestamp() > x.timestamp())
+    }
+
+    /// Check if the token is ready to re-authenticate automatically
+    pub fn can_reauth(&self) -> bool {
+        self.is_expired() && self.refresh_token.is_some()
     }
 }
 

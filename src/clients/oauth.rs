@@ -31,13 +31,19 @@ use url::Url;
 pub trait OAuthClient: BaseClient {
     fn get_oauth(&self) -> &OAuth;
 
+    /// Re-authenticate automatically if it's configured to do so, which uses the refresh token to obtain a new access token.
+    async fn auto_reauth(&self) -> ClientResult<()>;
+
     /// Obtains a user access token given a code, as part of the OAuth
     /// authentication. The access token will be saved internally.
-    async fn request_token(&mut self, code: &str) -> ClientResult<()>;
+    async fn request_token(&self, code: &str) -> ClientResult<()>;
+
+    /// Refetch the current access token given a refresh token
+    async fn refetch_token(&self, refresh_token: &str) -> ClientResult<Token>;
 
     /// Refreshes the current access token given a refresh token. The obtained
     /// token will be saved internally.
-    async fn refresh_token(&mut self, refresh_token: &str) -> ClientResult<()>;
+    async fn refresh_token(&self, refresh_token: &str) -> ClientResult<()>;
 
     /// Tries to read the cache file's token, which may not exist.
     async fn read_token_cache(&mut self) -> Option<Token> {
@@ -98,8 +104,7 @@ pub trait OAuthClient: BaseClient {
     #[maybe_async]
     async fn prompt_for_token(&mut self, url: &str) -> ClientResult<()> {
         match self.read_token_cache().await {
-            // TODO: shouldn't this also refresh the obtained token?
-            Some(ref mut new_token) => {
+            Some(new_token) => {
                 self.get_token_mut().replace(new_token);
             }
             // Otherwise following the usual procedure to get the token.
@@ -110,7 +115,7 @@ pub trait OAuthClient: BaseClient {
             }
         }
 
-        self.write_token_cache()
+        self.write_token_cache().await
     }
 
     /// Get current user playlists without required getting his profile.
